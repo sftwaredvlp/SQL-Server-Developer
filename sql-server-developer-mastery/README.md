@@ -11,6 +11,28 @@ This project is a comprehensive, hands-on learning resource designed to take you
 - Backend developers needing database skills
 - Anyone preparing for SQL Server certifications
 
+## 🚀 Quick Start - Choose Your Environment
+
+### Option 1: Azure SQL Database (Cloud - Recommended for beginners)
+
+1. Create a free Azure account at [portal.azure.com](https://portal.azure.com)
+2. Create a **SQL Database** (Free tier available for 12 months)
+3. Use **Azure Data Studio** or **VS Code with mssql extension** to connect
+4. Start from `01_sql_fundamentals/02_create_tables.sql` (skip database creation)
+
+### Option 2: Docker (Quick local setup)
+
+```bash
+docker run -e "ACCEPT_EULA=Y" -e "SA_PASSWORD=YourStrong@Passw0rd" \
+  -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest
+```
+
+### Option 3: SQL Server Developer Edition (Full local install)
+
+1. Download [SQL Server Developer Edition](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) (Free)
+2. Install SQL Server Management Studio (SSMS)
+3. Run all scripts as-is
+
 ## How to Use This Project
 
 1. **Clone this repository** to your local machine
@@ -19,6 +41,15 @@ This project is a comprehensive, hands-on learning resource designed to take you
 4. **Type each script yourself** - don't copy/paste! Muscle memory matters.
 5. **Read all comments** - they explain the WHY, not just the WHAT
 6. **Experiment** - modify the scripts, break them, fix them
+
+## ⚠️ Azure SQL Users - Important Notes
+
+| Script | Azure SQL Behavior |
+|--------|-------------------|
+| `CREATE DATABASE` | ❌ Use Azure Portal instead |
+| `USE DatabaseName` | ❌ Already connected - skip this |
+| `CREATE LOGIN` | ⚠️ Different syntax in Azure |
+| Everything else | ✅ Works normally |
 
 ## Folder Structure
 
@@ -40,8 +71,8 @@ sql-server-developer-mastery/
 
 ## Prerequisites
 
-- SQL Server 2019+ (Developer Edition is free)
-- SQL Server Management Studio (SSMS) or Azure Data Studio
+- SQL Server 2019+ (Developer Edition is free) **OR** Azure SQL Database
+- SQL Server Management Studio (SSMS), Azure Data Studio, or VS Code with mssql extension
 - Basic understanding of relational database concepts
 
 ## Learning Outcomes
@@ -68,7 +99,6 @@ After completing this project, you will be able to:
 ## Contributing
 
 Found an issue or have an improvement? Feel free to contribute!
-
 
 **Start your journey:** Begin with `01_sql_fundamentals/01_create_database.sql`
 
