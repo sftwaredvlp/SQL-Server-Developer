@@ -365,3 +365,282 @@ WHERE NOT (
     DepartmentID = 1 AND Salary < 70000
 );
 GO
+-- ============================================================================
+-- SECTION 6: NULL BEHAVIOR WITH LOGICAL OPERATORS
+-- ============================================================================
+
+/*
+    NULL (UNKNOWN) in logical operations:
+    
+    TRUE AND UNKNOWN = UNKNOWN (row excluded)
+    FALSE AND UNKNOWN = FALSE (row excluded)
+    TRUE OR UNKNOWN = TRUE (row included!)
+    FALSE OR UNKNOWN = UNKNOWN (row excluded)
+    NOT UNKNOWN = UNKNOWN (row excluded)
+    
+    This can cause unexpected results!
+*/
+
+-- Setup: Ensure we have some NULL salaries for demonstration
+UPDATE Employee SET Salary = NULL WHERE EmployeeID = 17;
+
+-- Demonstrate NULL with AND
+-- Looking for employees with salary > 50000 AND in department 1
+SELECT 
+    FirstName,
+    LastName,
+    Salary,
+    DepartmentID
+FROM Employee
+WHERE Salary > 50000 AND DepartmentID = 1;
+-- Employees with NULL salary are NOT included
+-- Because: UNKNOWN AND TRUE = UNKNOWN
+GO
+
+-- Demonstrate NULL with OR
+SELECT 
+    FirstName,
+    LastName,
+    Salary,
+    DepartmentID
+FROM Employee
+WHERE Salary > 50000 OR DepartmentID = 1;
+-- Employees with NULL salary in Dept 1 ARE included
+-- Because: UNKNOWN OR TRUE = TRUE
+GO
+
+-- Handling NULL explicitly
+SELECT 
+    FirstName,
+    LastName,
+    Salary,
+    DepartmentID
+FROM Employee
+WHERE (Salary > 50000 OR Salary IS NULL)  -- Include NULL salaries
+  AND DepartmentID IN (1, 2);
+GO
+
+
+-- ============================================================================
+-- SECTION 7: PERFORMANCE CONSIDERATIONS
+-- ============================================================================
+
+/*
+    PERFORMANCE TIPS:
+    
+    1. AND conditions: Put most restrictive condition first
+       - SQL Server optimizer usually handles this, but helps readability
+    
+    2. OR conditions: Consider UNION instead for better index use
+       - OR can prevent index usage
+       - UNION of two indexed queries may be faster
+    
+    3. NOT conditions: May prevent index seeks
+       - Consider rewriting positively when possible
+    
+    4. IN vs OR: Generally equivalent, IN is more readable
+    
+    5. Avoid OR on different columns when possible
+*/
+
+-- OR can prevent index use. Consider UNION as alternative:
+
+-- Using OR (may not use indexes efficiently)
+SELECT FirstName, LastName, Email
+FROM Employee
+WHERE FirstName = 'John' OR LastName = 'Smith';
+GO
+
+-- Using UNION (each query can use its own index)
+SELECT FirstName, LastName, Email
+FROM Employee
+WHERE FirstName = 'John'
+UNION
+SELECT FirstName, LastName, Email
+FROM Employee
+WHERE LastName = 'Smith';
+GO
+
+-- Rewriting NOT for clarity
+-- Instead of:
+SELECT * FROM Employee WHERE NOT (Salary < 50000);
+
+-- Write:
+SELECT * FROM Employee WHERE Salary >= 50000;
+GO
+
+-- Short-circuit evaluation
+-- SQL Server may short-circuit AND/OR, but don't rely on it
+-- Put cheap conditions before expensive ones when possible
+
+
+-- ============================================================================
+-- SECTION 8: PRACTICAL BUSINESS EXAMPLES
+-- ============================================================================
+
+-- Example 1: Customer segmentation
+-- VIP customers: High credit limit OR many orders OR long tenure
+SELECT 
+    CustomerID,
+    FirstName,
+    LastName,
+    CreditLimit,
+    RegistrationDate,
+    Status
+FROM Customer
+WHERE Status = 'Active'
+  AND (
+      CreditLimit >= 10000                                    -- High credit
+      OR DATEDIFF(YEAR, RegistrationDate, GETDATE()) >= 3   -- 3+ years
+  );
+GO
+
+-- Example 2: Product search with filters
+-- User can filter by: category, price range, availability
+DECLARE @CategoryFilter NVARCHAR(50) = 'Electronics';  -- NULL means any
+DECLARE @MinPrice DECIMAL(10,2) = 50;                  -- NULL means no min
+DECLARE @MaxPrice DECIMAL(10,2) = 500;                 -- NULL means no max
+DECLARE @ActiveOnly BIT = 1;                            -- 1 = active only
+
+SELECT 
+    ProductID,
+    ProductName,
+    Category,
+    UnitPrice,
+    IsActive
+FROM Product
+WHERE 
+    -- Category filter (NULL means any category)
+    (@CategoryFilter IS NULL OR Category = @CategoryFilter)
+    -- Price range
+    AND (@MinPrice IS NULL OR UnitPrice >= @MinPrice)
+    AND (@MaxPrice IS NULL OR UnitPrice <= @MaxPrice)
+    -- Active filter
+    AND (@ActiveOnly = 0 OR IsActive = 1);
+GO
+
+-- Example 3: Order search with multiple criteria
+SELECT 
+    o.OrderNumber,
+    o.CustomerID,
+    o.StatusID,
+    o.TotalAmount,
+    o.OrderDate
+FROM [Order] o
+WHERE 
+    -- Not deleted
+    o.IsDeleted = 0
+    AND (
+        -- High value orders
+        o.TotalAmount > 500
+        OR
+        -- Recent orders (last 7 days)
+        o.OrderDate >= DATEADD(DAY, -7, GETDATE())
+        OR
+        -- Orders awaiting action (Pending or Processing)
+        o.StatusID IN (1, 2)
+    );
+GO
+
+
+-- ============================================================================
+-- SECTION 9: COMMON MISTAKES AND HOW TO AVOID THEM
+-- ============================================================================
+
+/*
+    ❌ MISTAKE 1: Forgetting operator precedence (AND before OR)
+    
+    -- Bad: Returns unexpected results
+    SELECT * FROM Employee
+    WHERE DepartmentID = 1 OR DepartmentID = 2 AND Salary > 80000;
+    -- Returns: All IT + (HR with Salary > 80000)
+    
+    -- Good: Use parentheses
+    SELECT * FROM Employee
+    WHERE (DepartmentID = 1 OR DepartmentID = 2) AND Salary > 80000;
+    -- Returns: (IT or HR) with Salary > 80000
+*/
+
+/*
+    ❌ MISTAKE 2: Using OR when AND is needed
+    
+    -- Bad: This returns nearly all rows!
+    SELECT * FROM Employee
+    WHERE DepartmentID = 1 OR DepartmentID = 2 OR DepartmentID = 3;
+    -- If they wanted only rows in departments 1 AND 2 AND 3 (impossible!)
+    
+    -- Understand the logic first, then write the query
+*/
+
+/*
+    ❌ MISTAKE 3: NOT with NULL columns without IS NULL check
+    
+    -- Bad: Doesn't return NULL salary employees
+    SELECT * FROM Employee WHERE NOT (Salary > 50000);
+    -- NULL salary rows are excluded!
+    
+    -- Good: Handle NULL explicitly
+    SELECT * FROM Employee 
+    WHERE Salary <= 50000 OR Salary IS NULL;
+*/
+
+/*
+    ❌ MISTAKE 4: Complex nested conditions without comments
+    
+    -- Bad: What does this mean?
+    SELECT * FROM Product
+    WHERE (A = 1 OR B = 2) AND (C = 3 OR D = 4) AND NOT (E = 5 AND F = 6);
+    
+    -- Good: Add comments
+    SELECT * FROM Product
+    WHERE 
+        -- Condition group 1: Category or type
+        (A = 1 OR B = 2) 
+        AND 
+        -- Condition group 2: Status or priority
+        (C = 3 OR D = 4) 
+        AND 
+        -- Exclude: Specific combination
+        NOT (E = 5 AND F = 6);
+*/
+
+
+-- ============================================================================
+-- SUMMARY
+-- ============================================================================
+
+/*
+    KEY TAKEAWAYS:
+    
+    1. AND OPERATOR:
+       - All conditions must be TRUE
+       - FALSE AND anything = FALSE
+       - UNKNOWN AND TRUE = UNKNOWN
+    
+    2. OR OPERATOR:
+       - Any condition can be TRUE
+       - TRUE OR anything = TRUE
+       - May impact index usage
+    
+    3. NOT OPERATOR:
+       - Reverses condition
+       - NOT UNKNOWN = UNKNOWN
+       - Consider positive rewrites
+    
+    4. PRECEDENCE:
+       - NOT > AND > OR
+       - Always use parentheses for clarity!
+    
+    5. NULL BEHAVIOR:
+       - Causes UNKNOWN in comparisons
+       - Handle explicitly with IS NULL
+       - Be careful with NOT and NULL
+    
+    6. BEST PRACTICES:
+       - Use parentheses liberally
+       - Add comments for complex logic
+       - Consider UNION instead of OR for performance
+       - Test edge cases with NULL values
+    
+    NEXT LESSON: order_by.sql - Sorting your results
+*/
